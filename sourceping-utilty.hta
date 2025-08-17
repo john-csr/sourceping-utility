@@ -1,0 +1,207 @@
+<html>
+<head>
+  <title>Ping Range Tool</title>
+  <HTA:APPLICATION 
+    ID="PingTool"
+    APPLICATIONNAME="Ping Range Tool"
+    BORDER="thin"
+    BORDERSTYLE="normal"
+    CAPTION="yes"
+    SHOWINTASKBAR="yes"
+    SINGLEINSTANCE="yes"
+    WINDOWSTATE="normal"
+  >
+<meta charset="UTF-8">
+<meta name="author" content="John C.">
+<meta name="description" content="Ping Range Tool — Diagnose connectivity across a range of IPs using a specified source IP.">
+<meta name="version" content="1.0">
+<meta name="license" content="MIT License">
+
+  <style>
+  body {
+    font-family: Segoe UI, sans-serif;
+    font-size: 13px;
+    background-color: #2c2f33;
+    color: #e0e0e0;
+    margin: 20px;
+  }
+  h2 {
+    color: #61a0ff;
+    border-bottom: 1px solid #444;
+    padding-bottom: 5px;
+    font-size: 16px;
+  }
+  label {
+    font-weight: bold;
+    margin-top: 10px;
+    display: block;
+    color: #e0e0e0;
+  }
+  input[type="text"] {
+    padding: 5px;
+    border: 1px solid #555;
+    border-radius: 4px;
+    background-color: #1e2124;
+    color: #e0e0e0;
+    font-size: 13px;
+  }
+  #sourceIP {
+    width: 280px;
+  }
+  #ipRange {
+    width: 360px;
+  }
+  textarea {
+    padding: 5px;
+    border: 1px solid #555;
+    border-radius: 4px;
+    background-color: #1e2124;
+    color: #e0e0e0;
+    font-size: 13px;
+    resize: none;
+  }
+  #results {
+    width: 380px;
+    height: 260px;
+  }
+  #ipconfigOutput {
+    width: 516px;
+    height: 240px;
+  }
+  button {
+    background-color: #0078d4;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    margin-top: 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  button:hover {
+    background-color: #005a9e;
+  }
+  table {
+    width: 100%;
+  }
+  td {
+    vertical-align: top;
+  }
+  .panel {
+    background-color: #3c4047;
+    padding: 15px;
+    border-radius: 6px;
+    box-shadow: 0 0 6px rgba(0,0,0,0.3);
+  }
+  footer {
+    margin-top: 20px;
+    font-size: 11px;
+    color: #aaa;
+    text-align: center;
+  }
+</style>
+
+
+  <script language="VBScript">
+    Sub PingRange
+      Dim sourceIP, range, startIP, endIP, baseIP, startNum, endNum, i, ip
+      Dim shell, fso, tempFile, resultFile, resultText
+
+      sourceIP = document.getElementById("sourceIP").value
+      range = document.getElementById("ipRange").value
+      document.getElementById("results").value = ""
+
+      If InStr(range, "-") = 0 Then
+        MsgBox "Please enter range in format: 192.168.1.1-192.168.1.20"
+        Exit Sub
+      End If
+
+      startIP = Split(range, "-")(0)
+      endIP = Split(range, "-")(1)
+
+      baseIP = Split(startIP, ".")(0) & "." & Split(startIP, ".")(1) & "." & Split(startIP, ".")(2) & "."
+      startNum = CInt(Split(startIP, ".")(3))
+      endNum = CInt(Split(endIP, ".")(3))
+
+      Set shell = CreateObject("WScript.Shell")
+      Set fso = CreateObject("Scripting.FileSystemObject")
+      tempFile = shell.ExpandEnvironmentStrings("%TEMP%") & "\ping_result.txt"
+
+      For i = startNum To endNum
+        ip = baseIP & i
+        shell.Run "cmd /c ping " & ip & " -n 1 -S " & sourceIP & " > """ & tempFile & """", 0, True
+
+        If fso.FileExists(tempFile) Then
+          Set resultFile = fso.OpenTextFile(tempFile, 1)
+          resultText = resultFile.ReadAll
+          resultFile.Close
+
+          If InStr(resultText, "Reply from " & ip) > 0 Then
+            document.getElementById("results").value = document.getElementById("results").value & ip & " - Success" & vbCrLf
+          ElseIf InStr(resultText, "Destination host unreachable") > 0 Then
+            document.getElementById("results").value = document.getElementById("results").value & ip & " - Unreachable" & vbCrLf
+          Else
+            document.getElementById("results").value = document.getElementById("results").value & ip & " - Failed" & vbCrLf
+          End If
+        Else
+          document.getElementById("results").value = document.getElementById("results").value & ip & " - Error reading result" & vbCrLf
+        End If
+      Next
+    End Sub
+
+    Sub GetIPConfig
+      Dim shell, fso, tempFile, resultFile, resultText
+      Set shell = CreateObject("WScript.Shell")
+      Set fso = CreateObject("Scripting.FileSystemObject")
+      tempFile = shell.ExpandEnvironmentStrings("%TEMP%") & "\ipconfig_output.txt"
+
+      shell.Run "cmd /c ipconfig > """ & tempFile & """", 0, True
+
+      If fso.FileExists(tempFile) Then
+        Set resultFile = fso.OpenTextFile(tempFile, 1)
+        resultText = resultFile.ReadAll
+        resultFile.Close
+        document.getElementById("ipconfigOutput").value = CStr(resultText)
+      Else
+        document.getElementById("ipconfigOutput").value = "Failed to retrieve IP configuration."
+      End If
+    End Sub
+  </script>
+</head>
+<body>
+  <table>
+    <tr>
+      <td>
+        <div class="panel">
+          <h2>Ping Range Tool</h2>
+          <label for="sourceIP">Source IP:</label>
+          <input type="text" id="sourceIP">
+
+          <label for="ipRange">Target IP Range (e.g., 192.168.1.1-192.168.1.20):</label>
+          <input type="text" id="ipRange">
+
+          <button onclick="PingRange">Ping Range</button>
+
+          <label for="results">Results:</label>
+          <textarea id="results"></textarea>
+        </div>
+      </td>
+      <td style="padding-left:30px;">
+        <div class="panel">
+          <h2>Local IP Info</h2>
+          <button onclick="GetIPConfig">Get Local IP Configuration</button>
+
+          <label for="ipconfigOutput">Output:</label>
+          <textarea id="ipconfigOutput"></textarea>
+        </div>
+      </td>
+    </tr>
+  </table>
+
+  <footer>
+  <p>Ping Range Tool v1.0 — MIT License</p>
+  <p>© 2025 John C. — Free to use, modify, and distribute.</p>
+</footer>
+
+</body>
+</html>
